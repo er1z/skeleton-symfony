@@ -1,0 +1,57 @@
+version: "2.2"
+services:
+  app_www:
+    build: docker/nginx
+    container_name: app_www
+    hostname: app_www
+    working_dir: /app
+    user: "$CONTAINER_UID:$CONTAINER_GID"
+    volumes:
+      - ./:/app
+    ports:
+      - "23080:1337"
+    depends_on:
+      - app_app
+
+  app_app:
+    build: docker/php
+    container_name: app_app
+    hostname: app_app
+    extra_hosts:
+      - "debugger:$DEBUGGER_HOST"
+    environment:
+      APP_DATABASE_URL: "pgsql://app:app@app_postgres:5432/app"
+      APP_CONTAINER_UID: $CONTAINER_UID
+      APP_CONTAINER_GID: $CONTAINER_GID
+    working_dir: /app
+    depends_on:
+      app_postgres:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+      - app_app_home:/home/app
+    ports:
+      - "23022:22"
+
+  app_postgres:
+    image: postgres:13
+    container_name: app_postgres
+    hostname: app_postgres
+    environment:
+      POSTGRES_PASSWORD: "app"
+      POSTGRES_USER: "app"
+    healthcheck:
+      test: "pg_isready -h 127.0.0.1 -U app"
+      interval: 3s
+      timeout: 30s
+      retries: 5
+    expose:
+      - "5432"
+    ports:
+      - "23432:5432"
+    volumes:
+      - app_postgres:/var/lib/postgresql
+
+volumes:
+  app_postgres:
+  app_app_home:
